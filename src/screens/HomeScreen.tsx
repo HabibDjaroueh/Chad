@@ -10,13 +10,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RecordButton } from '../components/RecordButton';
 import { WorkoutCard } from '../components/WorkoutCard';
+import { UnitPicker } from '../components/UnitPicker';
+import { useWeightUnit } from '../context/WeightUnitContext';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 // import { useWakeWord } from '../hooks/useWakeWord';
 import { useSilenceDetector } from '../hooks/useSilenceDetector';
 import { transcribeAudio } from '../services/whisper';
 import { parseWorkoutFromTranscript } from '../services/parser';
-import { saveWorkoutEntry, loadWorkoutEntries } from '../services/storage';
-import { WorkoutEntry, ExerciseGroup } from '../types/workout';
+import { saveWorkoutEntry, loadWorkoutEntries, removeSetFromEntry } from '../services/storage';
+import { WorkoutEntry, ExerciseGroup, GroupedSet } from '../types/workout';
+import { convertWeight, formatWeight, setVolume } from '../utils/units';
 
 type Section = {
   title: string;
@@ -56,7 +59,14 @@ function groupEntries(entries: WorkoutEntry[]): Section[] {
     }
 
     const group = exerciseMap.get(exerciseKey)!;
-    group.sets.push(...entry.sets);
+    group.sets.push(
+      ...entry.sets.map((s) => ({
+        ...s,
+        entryId: entry.id,
+        entrySetNumber: s.setNumber,
+        storedUnit: entry.unit,
+      }))
+    );
   }
 
   for (const exerciseMap of byDate.values()) {
@@ -80,12 +90,12 @@ function groupEntries(entries: WorkoutEntry[]): Section[] {
 export function HomeScreen() {
   const [entries, setEntries] = useState<WorkoutEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const { unit: weightUnit, setUnit: setWeightUnit } = useWeightUnit();
   const { state, error, recorder, startRecording, stopRecording, resetState } = useVoiceRecorder();
   const wakeWordListening = false;
   const startWakeWord = () => {};
   const stopWakeWord = () => {};
 
-  // Auto-stop when user goes quiet
   useSilenceDetector(recorder, state === 'recording', processRecording);
 
   useEffect(() => {
@@ -94,9 +104,6 @@ export function HomeScreen() {
       .catch((err) => console.error('Failed to load entries:', err))
       .finally(() => setLoading(false));
   }, []);
-
-  // Wake word disabled — using button only
-  // useEffect(() => { startWakeWord(); }, []);
 
   async function processRecording() {
     const audioUri = await stopRecording();
@@ -108,15 +115,19 @@ export function HomeScreen() {
 
     try {
       const transcript = await transcribeAudio(audioUri);
-      const { exercise, sets, unit, notes } = await parseWorkoutFromTranscript(transcript);
+      const { exercise, sets, unit: parsedUnit, notes } = await parseWorkoutFromTranscript(transcript);
+      const setsInPreferredUnit = sets.map((s) => ({
+        ...s,
+        weight: convertWeight(s.weight, parsedUnit, weightUnit),
+      }));
 
       const entry: WorkoutEntry = {
         id: Date.now().toString(),
         timestamp: new Date(),
         rawTranscript: transcript,
         exercise,
-        sets,
-        unit,
+        sets: setsInPreferredUnit,
+        unit: weightUnit,
         notes,
       };
 
@@ -131,7 +142,6 @@ export function HomeScreen() {
     }
   }
 
-  // Manual fallback — tap and hold the button
   async function handleManualPressIn() {
     stopWakeWord();
     await startRecording();
@@ -141,10 +151,34 @@ export function HomeScreen() {
     await processRecording();
   }
 
+  function handleDeleteSet(set: GroupedSet) {
+    const weight = convertWeight(set.weight, set.storedUnit, weightUnit);
+    Alert.alert(
+      'Delete Set',
+      `Remove set ${set.setNumber} (${formatWeight(weight)} ${weightUnit} × ${set.reps} reps)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updated = await removeSetFromEntry(entries, set.entryId, set.entrySetNumber);
+              setEntries(updated);
+            } catch (err) {
+              Alert.alert('Error', 'Failed to delete set.');
+              console.error(err);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   const todayKey = toDateKey(new Date());
   const todayEntries = entries.filter((e) => toDateKey(new Date(e.timestamp)) === todayKey);
   const todayVolume = todayEntries.reduce((acc, e) => {
-    return acc + e.sets.reduce((s, set) => s + set.reps * set.weight, 0);
+    return acc + e.sets.reduce((s, set) => s + setVolume(set, e.unit, weightUnit), 0);
   }, 0);
 
   const sections = groupEntries(entries);
@@ -152,13 +186,14 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>CHAD</Text>
+          <View style={styles.headerTop}>
+            <Text style={styles.title}>CHAD</Text>
+            <UnitPicker value={weightUnit} onChange={setWeightUnit} />
+          </View>
           <Text style={styles.subtitle}>Voice Workout Tracker</Text>
         </View>
 
-        {/* Today Stats Bar */}
         {todayEntries.length > 0 && (
           <View style={styles.statsBar}>
             <View style={styles.statItem}>
@@ -170,21 +205,25 @@ export function HomeScreen() {
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNum}>{todayVolume.toLocaleString()}</Text>
-              <Text style={styles.statLbl}>lbs Today</Text>
+              <Text style={styles.statLbl}>{weightUnit} Today</Text>
             </View>
           </View>
         )}
 
-        {/* Loading */}
         {loading && (
           <ActivityIndicator color="#30D158" style={{ marginBottom: 16 }} />
         )}
 
-        {/* Grouped List */}
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.exercise}
-          renderItem={({ item }) => <WorkoutCard group={item} />}
+          renderItem={({ item }) => (
+            <WorkoutCard
+              group={item}
+              displayUnit={weightUnit}
+              onDeleteSet={handleDeleteSet}
+            />
+          )}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, section.isToday ? styles.sectionTitleToday : null]}>
@@ -208,10 +247,8 @@ export function HomeScreen() {
           }
         />
 
-        {/* Error */}
         {error && <Text style={styles.error}>{error}</Text>}
 
-        {/* Record Button */}
         <View style={styles.recordArea}>
           <RecordButton
             state={state}
@@ -237,6 +274,11 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 20,
     paddingBottom: 16,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: 36,

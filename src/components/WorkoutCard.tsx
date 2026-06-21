@@ -1,12 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { ExerciseGroup } from '../types/workout';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { ExerciseGroup, GroupedSet, WeightUnit } from '../types/workout';
+import { convertWeight, formatWeight } from '../utils/units';
 
 interface Props {
   group: ExerciseGroup;
+  displayUnit: WeightUnit;
+  onDeleteSet?: (set: GroupedSet) => void;
 }
 
-export function WorkoutCard({ group }: Props) {
+export function WorkoutCard({ group, displayUnit, onDeleteSet }: Props) {
   return (
     <View style={styles.card}>
       <Text style={styles.exercise}>{group.exercise.toUpperCase()}</Text>
@@ -15,15 +18,31 @@ export function WorkoutCard({ group }: Props) {
         <Text style={styles.colLabel}>SET</Text>
         <Text style={styles.colLabel}>WEIGHT</Text>
         <Text style={styles.colLabel}>REPS</Text>
+        {onDeleteSet && <View style={styles.deleteCol} />}
       </View>
 
-      {group.sets.map((set) => (
-        <View key={set.setNumber} style={styles.setRow}>
-          <Text style={styles.setNumber}>{set.setNumber}</Text>
-          <Text style={styles.setValue}>{set.weight} {group.unit}</Text>
-          <Text style={styles.setValue}>{set.reps}</Text>
-        </View>
-      ))}
+      {group.sets.map((set) => {
+        const weight = convertWeight(set.weight, set.storedUnit, displayUnit);
+        return (
+          <View key={`${set.entryId}-${set.entrySetNumber}`} style={styles.setRow}>
+            <Text style={styles.setNumber}>{set.setNumber}</Text>
+            <Text style={styles.setValue}>
+              {formatWeight(weight)} {displayUnit}
+            </Text>
+            <Text style={styles.setValue}>{set.reps}</Text>
+            {onDeleteSet && (
+              <Pressable
+                style={styles.deleteBtn}
+                onPress={() => onDeleteSet(set)}
+                hitSlop={8}
+                accessibilityLabel={`Delete set ${set.setNumber}`}
+              >
+                <Text style={styles.deleteIcon}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -60,9 +79,13 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
+  deleteCol: {
+    width: 32,
+  },
   setRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#2C2C2E',
@@ -80,5 +103,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
+  },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteIcon: {
+    color: '#48484A',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

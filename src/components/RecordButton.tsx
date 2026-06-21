@@ -24,7 +24,6 @@ export function RecordButton({ state, wakeWordListening, onPressIn, onPressOut }
 
   return (
     <View style={styles.wrapper}>
-      {/* Wake word active indicator */}
       {isIdle && wakeWordListening && (
         <View style={styles.listeningBadge}>
           <View style={styles.listeningDot} />
@@ -40,7 +39,7 @@ export function RecordButton({ state, wakeWordListening, onPressIn, onPressOut }
         ]}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        disabled={isProcessing || isRecording}
+        disabled={isProcessing}
         activeOpacity={0.8}
       >
         <Text style={styles.icon}>{icon}</Text>

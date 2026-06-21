@@ -1,7 +1,15 @@
+export type WeightUnit = 'lbs' | 'kg';
+
 export interface SetDetail {
   setNumber: number;
   reps: number;
   weight: number;
+}
+
+export interface GroupedSet extends SetDetail {
+  entryId: string;
+  entrySetNumber: number;
+  storedUnit: WeightUnit;
 }
 
 export interface WorkoutEntry {
@@ -10,12 +18,12 @@ export interface WorkoutEntry {
   rawTranscript: string;
   exercise: string | null;
   sets: SetDetail[];
-  unit: 'lbs' | 'kg';
+  unit: WeightUnit;
   notes?: string;
 }
 
 export interface ExerciseGroup {
   exercise: string;
-  sets: SetDetail[];
-  unit: 'lbs' | 'kg';
+  sets: GroupedSet[];
+  unit: WeightUnit;
 }

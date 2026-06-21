@@ -5,6 +5,7 @@ import {
 } from 'expo-speech-recognition';
 
 const WAKE_PHRASE = 'hey chad';
+const WAKE_WORD_ENABLED = false;
 
 export function useWakeWord(onDetected: () => void) {
   const [listening, setListening] = useState(false);
@@ -54,6 +55,7 @@ export function useWakeWord(onDetected: () => void) {
   });
 
   async function start() {
+    if (!WAKE_WORD_ENABLED) return;
     const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!granted) return;
     activeRef.current = true;

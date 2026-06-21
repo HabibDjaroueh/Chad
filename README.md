@@ -10,6 +10,7 @@ A React Native app that lets gym-goers track their workouts hands-free using voi
 4. The set is saved to Supabase and displayed on screen
 
 **Example inputs:**
+
 - "Set 1 bench press, 135 pounds, 12 reps"
 - "Set 2 bench press, 185 pounds, 8 reps"
 - "Bench press: 135 for 12, 185 for 8, 205 for 6" *(multiple sets in one recording)*
@@ -17,13 +18,15 @@ A React Native app that lets gym-goers track their workouts hands-free using voi
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| App | React Native + Expo (SDK 54) |
-| Language | TypeScript |
-| Voice → Text | OpenAI Whisper API |
-| Text → Data | GPT-4o-mini |
-| Database | Supabase (PostgreSQL) |
+
+| Layer        | Technology                   |
+| ------------ | ---------------------------- |
+| App          | React Native + Expo (SDK 54) |
+| Language     | TypeScript                   |
+| Voice → Text | OpenAI Whisper API           |
+| Text → Data  | GPT-4o-mini                  |
+| Database     | Supabase (PostgreSQL)        |
+
 
 ## Project Structure
 

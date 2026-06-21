@@ -5,12 +5,16 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WorkoutCalendar } from '../components/WorkoutCalendar';
 import { WorkoutCard } from '../components/WorkoutCard';
-import { loadWorkoutEntries } from '../services/storage';
-import { WorkoutEntry, ExerciseGroup } from '../types/workout';
+import { UnitPicker } from '../components/UnitPicker';
+import { useWeightUnit } from '../context/WeightUnitContext';
+import { loadWorkoutEntries, removeSetFromEntry } from '../services/storage';
+import { WorkoutEntry, ExerciseGroup, GroupedSet } from '../types/workout';
+import { convertWeight, formatWeight } from '../utils/units';
 
 function toDateKey(date: Date): string {
   return date.toISOString().split('T')[0];
@@ -26,7 +30,14 @@ function groupByExercise(entries: WorkoutEntry[]): ExerciseGroup[] {
     if (!map.has(key)) {
       map.set(key, { exercise: entry.exercise, sets: [], unit: entry.unit });
     }
-    map.get(key)!.sets.push(...entry.sets);
+    map.get(key)!.sets.push(
+      ...entry.sets.map((s) => ({
+        ...s,
+        entryId: entry.id,
+        entrySetNumber: s.setNumber,
+        storedUnit: entry.unit,
+      }))
+    );
   }
 
   for (const group of map.values()) {
@@ -48,6 +59,7 @@ export function CalendarScreen() {
   const [entries, setEntries] = useState<WorkoutEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(toDateKey(new Date()));
+  const { unit: weightUnit, setUnit: setWeightUnit } = useWeightUnit();
 
   useEffect(() => {
     loadWorkoutEntries()
@@ -63,11 +75,38 @@ export function CalendarScreen() {
   );
   const groups = groupByExercise(selectedEntries);
 
+  function handleDeleteSet(set: GroupedSet) {
+    const weight = convertWeight(set.weight, set.storedUnit, weightUnit);
+    Alert.alert(
+      'Delete Set',
+      `Remove set ${set.setNumber} (${formatWeight(weight)} ${weightUnit} × ${set.reps} reps)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updated = await removeSetFromEntry(entries, set.entryId, set.entrySetNumber);
+              setEntries(updated);
+            } catch (err) {
+              Alert.alert('Error', 'Failed to delete set.');
+              console.error(err);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>CALENDAR</Text>
+          <View style={styles.headerTop}>
+            <Text style={styles.title}>CALENDAR</Text>
+            <UnitPicker value={weightUnit} onChange={setWeightUnit} />
+          </View>
           <Text style={styles.subtitle}>Workout History</Text>
         </View>
 
@@ -92,7 +131,13 @@ export function CalendarScreen() {
                 <FlatList
                   data={groups}
                   keyExtractor={(item) => item.exercise}
-                  renderItem={({ item }) => <WorkoutCard group={item} />}
+                  renderItem={({ item }) => (
+                    <WorkoutCard
+                      group={item}
+                      displayUnit={weightUnit}
+                      onDeleteSet={handleDeleteSet}
+                    />
+                  )}
                   showsVerticalScrollIndicator={false}
                 />
               )}
@@ -116,6 +161,11 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 20,
     paddingBottom: 16,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: 36,
