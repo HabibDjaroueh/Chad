@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RecordButton } from '../components/RecordButton';
 import { WorkoutCard } from '../components/WorkoutCard';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-import { useWakeWord } from '../hooks/useWakeWord';
+// import { useWakeWord } from '../hooks/useWakeWord';
 import { useSilenceDetector } from '../hooks/useSilenceDetector';
 import { transcribeAudio } from '../services/whisper';
 import { parseWorkoutFromTranscript } from '../services/parser';
@@ -81,7 +81,9 @@ export function HomeScreen() {
   const [entries, setEntries] = useState<WorkoutEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const { state, error, recorder, startRecording, stopRecording, resetState } = useVoiceRecorder();
-  const { listening: wakeWordListening, start: startWakeWord, stop: stopWakeWord } = useWakeWord(startRecording);
+  const wakeWordListening = false;
+  const startWakeWord = () => {};
+  const stopWakeWord = () => {};
 
   // Auto-stop when user goes quiet
   useSilenceDetector(recorder, state === 'recording', processRecording);
@@ -93,10 +95,8 @@ export function HomeScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Start listening for "Hey Chad" when screen mounts
-  useEffect(() => {
-    startWakeWord();
-  }, []);
+  // Wake word disabled — using button only
+  // useEffect(() => { startWakeWord(); }, []);
 
   async function processRecording() {
     const audioUri = await stopRecording();
