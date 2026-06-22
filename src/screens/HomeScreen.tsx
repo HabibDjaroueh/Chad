@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RecordButton } from '../components/RecordButton';
+import { StreakModal } from '../components/StreakModal';
 import { WorkoutCard } from '../components/WorkoutCard';
 import { UnitPicker } from '../components/UnitPicker';
 import { useWeightUnit } from '../context/WeightUnitContext';
@@ -20,16 +21,21 @@ import { parseWorkoutFromTranscript } from '../services/parser';
 import { saveWorkoutEntry, loadWorkoutEntries, removeSetFromEntry } from '../services/storage';
 import { WorkoutEntry, ExerciseGroup, GroupedSet } from '../types/workout';
 import { convertWeight, formatWeight, setVolume } from '../utils/units';
+import {
+  toDateKey,
+  getWorkoutDateKeys,
+  calculateStreak,
+  isFirstWorkoutOfDay,
+  isValidWorkoutEntry,
+  getStreakMessage,
+  StreakMessage,
+} from '../utils/streak';
 
 type Section = {
   title: string;
   isToday: boolean;
   data: ExerciseGroup[];
 };
-
-function toDateKey(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
 
 function formatSectionTitle(dateKey: string): string {
   const today = toDateKey(new Date());
@@ -90,6 +96,9 @@ function groupEntries(entries: WorkoutEntry[]): Section[] {
 export function HomeScreen() {
   const [entries, setEntries] = useState<WorkoutEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [streakVisible, setStreakVisible] = useState(false);
+  const [streakCount, setStreakCount] = useState(0);
+  const [streakMessage, setStreakMessage] = useState<StreakMessage>({ headline: '', body: '' });
   const { unit: weightUnit, setUnit: setWeightUnit } = useWeightUnit();
   const { state, error, recorder, startRecording, stopRecording, resetState } = useVoiceRecorder();
   const wakeWordListening = false;
@@ -131,8 +140,20 @@ export function HomeScreen() {
         notes,
       };
 
+      const todayKey = toDateKey(new Date());
+      const showStreak =
+        isValidWorkoutEntry(entry) && isFirstWorkoutOfDay(entries, todayKey);
+
       await saveWorkoutEntry(entry);
       setEntries((prev) => [entry, ...prev]);
+
+      if (showStreak) {
+        const workoutDays = getWorkoutDateKeys([entry, ...entries]);
+        const streak = calculateStreak(workoutDays, todayKey);
+        setStreakCount(streak);
+        setStreakMessage(getStreakMessage(streak));
+        setStreakVisible(true);
+      }
     } catch (err) {
       Alert.alert('Error', 'Failed to process your voice input. Check your API key.');
       console.error(err);
@@ -257,6 +278,13 @@ export function HomeScreen() {
             onPressOut={handleManualPressOut}
           />
         </View>
+
+        <StreakModal
+          visible={streakVisible}
+          streak={streakCount}
+          message={streakMessage}
+          onDismiss={() => setStreakVisible(false)}
+        />
       </View>
     </SafeAreaView>
   );

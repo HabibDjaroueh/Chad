@@ -31,7 +31,12 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# log files
+expo-error.txt
+expo-output.txt
 
 # typescript
 *.tsbuildinfo
